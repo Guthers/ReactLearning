@@ -34,6 +34,7 @@ class AusTax extends React.Component {
         implication: "",
         tYear: 0,
         tPeriod: 0,
+        rPeriod: 0,
       }
     }
   }
@@ -98,15 +99,18 @@ class AusTax extends React.Component {
   
     let lBound = ((i === 0) ? 0 : cutoffs[i-1])
 
+    let tInPeriod = tax/this.periods[period]
+
     this.setState({
       period: period,
       amount: amount,
       calc: {
         year: yearGross,
         bracket: (lBound + 1) + " to " + cutoffs[i],
-        implication: "Paying: " + lump + " plus " + percentage*100 + "c for each dollar over $" + lBound,
-        tYear: tax,
-        tPeriod: tax/this.periods[period],
+        implication: "$" + lump + " plus " + percentage*100 + "c for each dollar over $" + lBound,
+        tYear: tax.toFixed(2),
+        tPeriod: tInPeriod.toFixed(2),
+        rPeriod: (amount - tInPeriod).toFixed(2),
       }
     })
   }
@@ -121,6 +125,7 @@ class AusTax extends React.Component {
               <th>Implication</th>
               <th>Tax in year</th>
               <th>Tax in period</th>
+              <th>Remainder in period</th>
             </tr>
           </thead>
           <tbody>
@@ -130,6 +135,7 @@ class AusTax extends React.Component {
               <td>{this.state.calc.implication}</td>
               <td>{"" + this.state.calc.tYear}</td>
               <td>{"" + this.state.calc.tPeriod}</td>
+              <td>{"" + this.state.calc.rPeriod}</td>
             </tr>
           </tbody>
         </Table>
