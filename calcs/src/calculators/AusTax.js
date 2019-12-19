@@ -95,7 +95,7 @@ class AusTax extends React.Component {
     let yearGross = amount * this.periods[period];
 
     // Calculate tax bracket
-    let uBound = this.getTaxBrackets(amount);
+    let uBound = this.getTaxBrackets(yearGross);
     let bracket = this.brackets[uBound];
 
     let percentage = bracket[0];
