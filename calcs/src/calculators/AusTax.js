@@ -5,7 +5,10 @@ import Dropdown from 'react-bootstrap/Dropdown';
 import DropdownButton from 'react-bootstrap/DropdownButton';
 import FormControl from 'react-bootstrap/FormControl';
 import Table from 'react-bootstrap/Table';
+import Alert from 'react-bootstrap/Alert';
 import SelectableContext from "react-bootstrap/SelectableContext";
+
+const invalidAlert = <Alert variant="danger">Please enter a valid number</Alert>;
 
 class AusTax extends React.Component {
   constructor(props) {
@@ -18,25 +21,17 @@ class AusTax extends React.Component {
       "monthly": 12,
       "yearly": 1
     }
+
     this.brackets = {
-      18200: [0, 0],
-      37000: [0.19, 0],
-      90000: [0.325, 3572],
-      180000: [0.45, 54097]
+      //        [Tax %, Lump,   LBound]
+      18200:    [0,     0,      0],
+      37000:    [0.19,  0,      18201],
+      90000:    [0.325, 3572,   37001],
+      180000:   [0.37,  20797,  90001],
+      infinity: [0.45,  54097,  180001]
     }
 
-    this.state = {
-      period: "weekly",
-      amount: 0,
-      calc: {
-        year: 0,
-        bracket: "",
-        implication: "",
-        tYear: 0,
-        tPeriod: 0,
-        rPeriod: 0,
-      }
-    }
+    this.state = this.calcState(0, "weekly")
   }
   
   render() {
@@ -57,62 +52,78 @@ class AusTax extends React.Component {
             })}
           </DropdownButton>
           </SelectableContext.Provider>
-          <FormControl onChange={e => this.updateAmount(e.target.value)}/>
+          <FormControl onChange={e => this.updateAmount(e.target.value)} defaultValue="0"/>
           <InputGroup.Text>{this.state.period}</InputGroup.Text>
         </InputGroup>
-        {this.createTable()}
+        {this.createTableSpreadOut()}
       </div>
-
     )
   }
 
+  amountForPeriod(amount, initalPeriod, newPeriod) {
+    if (initalPeriod === newPeriod) return amount !== ""? +amount: 0
+    
+    let yearGross = amount * this.periods[initalPeriod]
+    let period = yearGross / this.periods[newPeriod]
+
+    return period
+  }
+
   updatePeriod(period) {
-    this.reCalculate(this.state.amount, period)
+    this.setState(this.calcState(this.state.amount, period))
   }
 
   updateAmount(amount) {
-    this.reCalculate(amount, this.state.period)
+    if (isNaN(amount)) {
+      amount = 0
+    }
+    this.setState(this.calcState(amount, this.state.period)) 
   }
 
-  reCalculate(amount, period) { // Period is key
-    // Extrapolate to year
-    let yearGross = amount * this.periods[period]
-
-    // Calculate tax bracket
-    let i = 0
-    let cutoffs = Object.keys(this.brackets)
-    // Progress up the tax brackets until we find the one
-    while (yearGross > cutoffs[i]) {
-      i += 1
-      if (i === cutoffs.length) {
-        i -= 1
-        break
+  getTaxBrackets(amount) {
+    let uBounds = Object.keys(this.brackets);
+    let bound;
+    for(bound of uBounds) {
+      if (+amount <= +bound) {
+        return bound
       }
     }
+    return bound
+  }
+  calcState(amount, period) { // Period is key
+    // Extrapolate to year
+    let yearGross = amount * this.periods[period];
 
-    let bracket = this.brackets[cutoffs[i]]
-    let percentage = bracket[0]
-    let lump = bracket[1]
+    // Calculate tax bracket
+    let uBound = this.getTaxBrackets(amount);
+    let bracket = this.brackets[uBound];
 
-    let alreadyTaxed = (i === 0) ? 0 : cutoffs[i-1]
-    let tax = lump + ((yearGross - alreadyTaxed) *  percentage)
-  
-    let lBound = ((i === 0) ? 0 : cutoffs[i-1])
+    let percentage = bracket[0];
+    let lump = bracket[1];
+    let lBound = bracket[2];
 
-    let tInPeriod = tax/this.periods[period]
+    let alreadyTaxed = +lBound;
+    let tax = lump + ((yearGross - alreadyTaxed) *  percentage);
 
-    this.setState({
-      period: period,
-      amount: amount,
-      calc: {
-        year: yearGross,
-        bracket: (lBound + 1) + " to " + cutoffs[i],
-        implication: "$" + lump + " plus " + percentage*100 + "c for each dollar over $" + lBound,
-        tYear: tax.toFixed(2),
-        tPeriod: tInPeriod.toFixed(2),
-        rPeriod: (amount - tInPeriod).toFixed(2),
+    let tInPeriod = tax/this.periods[period];
+    let pPeriod = ((amount !== 0) ? ((tInPeriod/amount)*100) : 0).toFixed(2);
+
+    let bracketStr = (lBound !== 0 ? lBound : 0) + " to " + (uBound===0 ? "infinity" : uBound);
+    let implication = "$" + lump + " plus " + percentage*100 + "c for each dollar over $" + lBound; 
+    return {
+        valid: true,
+        period: period,
+        amount: amount,
+        calc: {
+          year: yearGross,
+          bracket: bracketStr,
+          implication: implication,
+          tYear: tax.toFixed(2),
+          tPeriod: tInPeriod.toFixed(2),
+          rPeriod: (amount - tInPeriod).toFixed(2),
+          pPeriod: isNaN(pPeriod)? 0: pPeriod
+        }
       }
-    })
   }
   
   createTable() {
@@ -139,6 +150,38 @@ class AusTax extends React.Component {
             </tr>
           </tbody>
         </Table>
+    )
+  }
+
+  createTableSpreadOut() {
+    return (
+      <div>
+        <p>Tax Bracket is ({this.state.calc.bracket}) which has the tax implication of {this.state.calc.implication} ({this.state.calc.pPeriod}%)</p>
+        <Table>
+          <thead>
+            <tr>
+              <th>Period</th>
+              <th>Amount in period</th>
+              <th>Tax in period</th>
+              <th>Remainder in period</th>
+            </tr>
+          </thead>
+          <tbody>
+            {Object.keys(this.periods).map((period, index) => {
+              let periodAmount = this.amountForPeriod(this.state.amount,this.state.period,period).toFixed(2);
+              let cals = this.calcState(periodAmount, period).calc
+              return (
+                <tr key={index}>
+                  <td>{period}</td>
+                  <td>{periodAmount}</td>
+                  <td>{cals.tPeriod}</td>
+                  <td>{cals.rPeriod}</td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </Table>
+      </div> 
     )
   }
 

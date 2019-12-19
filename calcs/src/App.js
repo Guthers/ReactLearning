@@ -10,7 +10,8 @@ import Button from 'react-bootstrap/Card';
 
 import SplitCalc from './calculators/SplitCalc';
 import AusTax from './calculators/AusTax';
-import ButtonClose from './examples/DropdownExpand'
+import ButtonClose from './examples/DropdownExpand';
+import MyMap from './examples/MyMap';
 
 class App extends React.Component {
   render() {
@@ -38,6 +39,9 @@ class App extends React.Component {
       ], [
         <Card.Header>Foo</Card.Header>,
         <p>Bar</p>
+      ], [
+        <Card.Header>Mapping</Card.Header>,
+        <MyMap />
       ]];
 
     return (
